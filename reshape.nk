@@ -1,0 +1,17 @@
+set cut_paste_input [stack 0]
+version 11.3 v4
+push $cut_paste_input
+BlinkScript {
+ recompileCount 65
+ ProgramGroup 1
+ KernelDescription "2 \"Reshape\" iterate componentWise 74c953dd4158d9a06083503a8213bd1d2b0b930185d60666d6370aabae13941f 2 \"src\" Read Random \"dst\" Write Point 0 0 2 \"src_width\" Int 1 1 AAAAAA== \"src_height\" Int 1 1 AAAAAA=="
+ kernelSource "kernel Reshape : public ImageComputationKernel<eComponentWise>\n\{\n  Image<eRead, eAccessRandom, eEdgeClamped> src;\n  Image<eWrite, eAccessPoint> dst;\n\n  local:\n    int src_width;\n    int src_height;\n\n  void init() \{\n    src_width = src.bounds.width();\n    src_height = src.bounds.height();\n  \}\n\n  void process(int2 pos) \{\n    int x = pos.x % src_width;\n    int y = src_height - pos.x / src_width; // invert to match numpy\n    dst() = src(x,y);\n  \}\n\};"
+ rebuild ""
+ format "16 10 0 0 16 10 1 unrolled tall"
+ specifiedFormat true
+ rebuild_finalise ""
+ name BlinkScript28
+ selected true
+ xpos -1461
+ ypos 1594
+}
