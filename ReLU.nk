@@ -1,0 +1,14 @@
+set cut_paste_input [stack 0]
+version 11.3 v4
+push $cut_paste_input
+Expression {
+ expr0 max(r,0)
+ expr1 max(g,0)
+ expr2 max(b,0)
+ maskChannelInput -rgba.alpha
+ unpremult -rgba.alpha
+ name ReLU
+ selected true
+ xpos -2371
+ ypos 68
+}
