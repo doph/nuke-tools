@@ -1,0 +1,14 @@
+set cut_paste_input [stack 0]
+version 11.3 v4
+push $cut_paste_input
+Expression {
+ expr0 "r > 0 ? r : r * 0.01"
+ expr1 "g > 0 ? g : g * 0.01"
+ expr2 "b > 0 ? b : b * 0.01"
+ maskChannelInput -rgba.alpha
+ unpremult -rgba.alpha
+ name LeakyReLU
+ selected true
+ xpos -2290
+ ypos 154
+}
