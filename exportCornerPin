@@ -1,0 +1,133 @@
+set cut_paste_input [stack 0]
+version 11.3 v4
+push $cut_paste_input
+Group {
+ name exportCornerPin
+ tile_color 0xa3a51fff
+ selected true
+ xpos -4269
+ ypos -298
+ addUserKnob {20 ProjectVerts}
+ addUserKnob {26 VertexIndices l "VERTEX INDICES    "}
+ addUserKnob {3 tlid l "Top Left" t "Vertex at top left corner of object."}
+ addUserKnob {3 trid l "       Top Right" t "Vertex at top right corner of object." -STARTLINE}
+ trid 1
+ addUserKnob {3 blid l "Bottom Left" t "Vertex at bottom left corner of object."}
+ blid 3
+ addUserKnob {3 brid l "Bottom Right" t "Vertex at bottom right corner of object." -STARTLINE}
+ brid 2
+ addUserKnob {26 Format l "FORMAT                   "}
+ addUserKnob {14 exportFormat l "Export Format" t "Export coordinates witihin this format. Linked to script format by default - delete animation to override." R 0 100}
+ exportFormat {{"\[python nuke.root()\\\['format'\\].value().width()]"} {"\[python nuke.root()\\\['format'\\].value().height()]"}}
+ addUserKnob {7 scale l "Scale Points" t "Scale the coordinates by this factor (around the centerpoint of the given format)" R 0 2}
+ scale 1
+ addUserKnob {26 Output l "OUTPUT                   "}
+ addUserKnob {20 CornerPin n 1}
+ addUserKnob {6 nodeFlag l "Create CornerPin2D Node" t "Create a CornerPin2D node in the dag with the computed coordinates baked in." +STARTLINE}
+ nodeFlag true
+ addUserKnob {20 endGroup_2 l endGroup n -1}
+ addUserKnob {20 Facing n 1}
+ addUserKnob {6 facingFlag l "Create Facing Node" t "Create a multiply node to turn off visibility when object is facing away from camera" +STARTLINE}
+ addUserKnob {7 facingTol l "Facing Tolerance" t "Tolerance for determining when the object is facing away from camera. Raising this value turns visibility off sooner." R -1 1}
+ facingTol 0.035
+ addUserKnob {20 endGroup n -1}
+ addUserKnob {20 JsonOutput l "Json Output" n 1}
+ addUserKnob {6 fileFlag l "Write Json File" t "Write a json file to the path below" +STARTLINE}
+ addUserKnob {2 fOut l "Output File" t "Write to this file if the Write File Action is selected"}
+ fOut ./cornerPin.json
+ addUserKnob {22 autoName l "Auto Name" t "Create a file name based on this script's name" -STARTLINE T "import os, re\n\nshotName = ''\nshotVar = os.getenv(\"SHOT_\")\nif shotVar:\n    shotName = shotVar\n\nscriptVersion = ''\nmatch = re.search(\"_v\[0-9]+\", nuke.scriptName())\nif match:\n    scriptVersion = match.group()\n\nfName = \"./%s_cornerPin%s.json\" % (shotName, scriptVersion)\nnuke.thisNode()\['fOut'].setValue(fName)"}
+ addUserKnob {20 endGroup_1 l endGroup n -1}
+ addUserKnob {26 ""}
+ addUserKnob {22 process l "          Process          " t "The GO button" T "import os\nimport simplejson as json\nimport math\nimport _nukemath\n\nmy = nuke.thisNode()\nfileFlag = my\['fileFlag'].getValue()\nnodeFlag = my\['nodeFlag'].getValue()\nfacingFlag = my\['facingFlag'].getValue()\ndebugFlag = my\['debug'].getValue()\n\n#########################################\n# Get vertex IDs from knobs, find them on connected geometry, \n# multiply their 3d coords by matrix of connected camera.\n# Relies on funtions in foundry's supplied snap3d script\n#########################################\ndef getCoords():\n    exportWidth = float(my\['exportFormat'].value()\[0])\n    exportHeight = float(my\['exportFormat'].value()\[1])\n    pixelAspect = 1.0 #non-square pixels not implemented\n    exportScale = my\['scale'].getValue()\n    top_left = int(my\['tlid'].getValue())\n    top_right = int(my\['trid'].getValue())\n    bottom_left = int(my\['blid'].getValue())\n    bottom_right = int(my\['brid'].getValue())\n    corners = \{\"top_left\": top_left, \"top_right\": top_right, \"bottom_left\": bottom_left, \"bottom_right\": bottom_right\}\n\n    geoList = my.node('connectedGeo')\['geo_select'].getGeometry()\n    if len(geoList) == 1:\n        screen = geoList\[0]\n    else:\n        raise Exception(\"You must filter geometry input down to just the screen.\")\n\n    cameraNode = my.node('connectedCam')\n    # Matrix to transform points into camera-relative coords.\n    camTransform = cameraNode\['transform'].value()\n\n    # Matrix to take the camera projection knobs into account\n    roll = float(cameraNode\['winroll'].getValue())\n    scale_x, scale_y = \[float(v) for v in cameraNode\['win_scale'].getValue()]\n    translate_x, translate_y = \[float(v) for v in cameraNode\['win_translate'].getValue()]\n    m = _nukemath.Matrix4()\n    m.makeIdentity()\n    m.rotateZ(math.radians(roll))\n    m.scale(1.0 / scale_x, 1.0 / scale_y, 1.0)\n    m.translate(-translate_x, -translate_y, 0.0)\n\n    # Projection matrix based on the focal length, aperture and clipping planes of the camera\n    focal_length = float(cameraNode\['focal'].getValue())\n    h_aperture = float(cameraNode\['haperture'].getValue())\n    near = float(cameraNode\['near'].getValue())\n    far = float(cameraNode\['far'].getValue())\n    projection_mode = int(cameraNode\['projection_mode'].getValue())\n    p = _nukemath.Matrix4()\n    p.projection(focal_length / h_aperture, near, far, projection_mode == 0)\n\n    # Matrix to translate the projected points into normalised pixel coords\n    t = _nukemath.Matrix4()\n    t.makeIdentity()\n    imageAspect = exportHeight/exportWidth\n    t.translate( 1.0, 1.0 - (1.0 - imageAspect / pixelAspect), 0.0 )\n\n    # Matrix to scale normalised pixel coords into actual pixel coords.\n    x_scale = float(exportWidth) / 2.0\n    y_scale = x_scale * pixelAspect\n    s = _nukemath.Matrix4()\n    s.makeIdentity()\n    s.scale(x_scale, y_scale, 1.0)\n\n    # Matrix for export scale\n    es = _nukemath.Matrix4()\n    es.makeIdentity()\n    es.scale(exportScale, exportScale, 1.0)\n    \n    camMatrix = s * t * es * p * m * camTransform.inverse()\n    \n    coords = \{\}\n    # get vertex coords and multiply by camera matrix\n    for name,vert in corners.iteritems():\n        pt = screen.points()\[vert]    \n        tPos = camMatrix * nuke.math.Vector4(pt.x, pt.y, pt.z, 1.0)\n        ptx = ( tPos.x / tPos.w )\n        pty = ( tPos.y / tPos.w )\n        # return coords as strings in order to keep numbers at 2 decimals of precision to match client spec\n        coords\[name] = \[\"%.02f\" % ptx, \"%.02f\" % pty]\n\n    camVec = nuke.math.Vector3(0,0,-1)\n    camVec = camTransform.vtransform(camVec)\n    camVec.normalize()\n    sNorm = screen.normals()\[0]\n    sNorm.normalize()\n    dotProd = camVec.dot(sNorm)\n    coords\['dotProd'] = dotProd\n\n    return coords\n\n\n#########################################\n# Create and open file, write header, loop over frame range running\n# getCoord function, write for each frame.\n#########################################\ndef __main__():\n    facingTol = my\['facingTol'].getValue()\n    if fileFlag:\n        # init output file\n        file = my\['fOut'].getValue()\n        if os.path.exists(file):\n            if not nuke.ask(\"Overwrite existing \" + os.path.basename(file) + \" ?\"):\n                return\n        else:\n            os.mknod(file, 0664)\n        of = open(file,'w')\n        # init output arrays\n        top_left, top_right, bottom_left, bottom_right = \[], \[], \[], \[]\n    \n    if nodeFlag:\n        my.end()\n        cornerPinNode = nuke.createNode(\"CornerPin2D\",'',False)\n        cornerList = \{ 'top_left':'to4', 'top_right':'to3', 'bottom_left':'to1', 'bottom_right':'to2' \}\n        for toCorner in cornerList.itervalues():\n            cornerPinNode\[toCorner].setAnimated()\n\n    if facingFlag:\n\tmy.end()\n\tfacingNode = nuke.createNode(\"Multiply\",'',False)\n        facingNode.setName(\"facing\")\n        facingNode\['value'].setAnimated()\n\n    # loop over frame range\n    userRange = nuke.getInput('Frame Range', '%s-%s' % (nuke.root().firstFrame(), nuke.root().lastFrame()))\n    frameRange = nuke.FrameRange(userRange)\n    updater = my.node('updater')     # hack to force nuke to update each frame\n    task = nuke.ProgressTask(\"Writing CornerPin Data\")\n    task.setMessage(\"Analyzing frames...\")\n    for f in frameRange:\n        if task.isCancelled():\n            break\n        nuke.execute(updater, f, f)                              # force update\n\n        # do the maths\n        coords = getCoords()\n        # check if screen is facing cam - bool is appended to each corner on each frame\n        facingBit = 0\n        dotProd = coords.pop('dotProd')\n        if (dotProd + facingTol) < 0:\n            facingBit = 1\n\n        if nodeFlag:\n            for name,toCorner in cornerList.iteritems(): \n                for i in range(len(coords\[name])):\n                    cornerPinNode\[toCorner].setValueAt(float(coords\[name]\[i]),f,i)\n                    \n\tif facingFlag:\n            facingNode\['value'].setValueAt(facingBit,f)\n            \n        if fileFlag:\n            for corner in coords.iterkeys():\n                coords\[corner].append(facingBit)\n            # add each frame's coords to output arrays\n            top_left.append(coords\[\"top_left\"])\n            top_right.append(coords\[\"top_right\"])\n            bottom_left.append(coords\[\"bottom_left\"])\n            bottom_right.append(coords\[\"bottom_right\"])\n\n        task.setProgress(int(float((f-frameRange.first()))/float((frameRange.last())-float(frameRange.first()))*100.0))\n\n    if fileFlag:\n        # the output dictionary\n        cp = \{\}\n        # change write order of corners here:\n        cp\[\"cornerPin\"] = (bottom_left, bottom_right, top_left, top_right)\n    \n        # convert dict to json string and write file\n        out = json.dumps(cp,separators=(',', ' : '))\n        \[outa,outb] = out.split(':')                                        # ugliness to remove quotes from strings \n        out = outa + ':' + outb.replace('\"','')                     # after key declaration to match client spec\n        of.write(out)\n        of.close()\n\n#########################################\nif debugFlag:\n    updater = my.node('updater')                      # update hack\n    nuke.execute(updater, int(nuke.frame()), int(nuke.frame()))       # forces update\n    print getCoords()\nelif fileFlag or nodeFlag or facingFlag:\n    __main__()\nelse:\n    nuke.message(\"Must choose at least one action!\")" +STARTLINE}
+ addUserKnob {6 debug l "Debug Only" t "Prints coordinates for current frame to script editor, disables any other selected actions" -STARTLINE}
+}
+ Input {
+  inputs 0
+  name geometry
+  xpos 591
+  ypos 150
+  number 1
+ }
+ GeoSelect {
+  geo {  }
+  name connectedGeo
+  xpos 591
+  ypos 231
+ }
+set Nb6243f0 [stack 0]
+ Output {
+  name Output1
+  xpos 591
+  ypos 293
+ }
+ StickyNote {
+  inputs 0
+  name StickyNote1
+  label "scanlinerender and curvetool are part of an\nugly hack to get nuke to update each frame"
+  xpos 181
+  ypos 275
+ }
+  Camera {
+  inputs 0
+  display off
+  selectable false
+  rot_order {{"\[topnode parent.input1].rot_order"}}
+  translate {{"\[topnode parent.input0].translate.x"} {"\[topnode parent.input0].translate.y"} {"\[topnode parent.input0].translate.z"}}
+  rotate {{"\[topnode parent.input0].rotate.x"} {"\[topnode parent.input0].rotate.y"} {"\[topnode parent.input0].rotate.z"}}
+  scaling {{"\[topnode parent.input0].scaling.x"} {"\[topnode parent.input0].scaling.y"} {"\[topnode parent.input0].scaling.z"}}
+  uniform_scale {{"\[topnode parent.input0].uniform_scale"}}
+  skew {{"\[topnode parent.input0].skew.x"} {"\[topnode parent.input0].skew.y"} {"\[topnode parent.input0].skew.z"}}
+  pivot {{"\[topnode parent.input0].pivot.x"} {"\[topnode parent.input0].pivot.y"} {"\[topnode parent.input0].pivot.z"}}
+  focal {{"\[topnode input0].focal.0"}}
+  haperture {{"\[topnode input0].haperture.0"}}
+  vaperture {{"\[topnode input0].vaperture.0"}}
+  near {{"\[topnode parent.input0].near"}}
+  far {{"\[topnode parent.input0].far"}}
+  win_translate {{"\[topnode parent.input0].win_translate.u"} {"\[topnode parent.input0].win_translate.v"}}
+  win_scale {{"\[topnode parent.input0].win_scale.u"} {"\[topnode input0].win_scale.v"}}
+  winroll {{"\[topnode parent.input0].winroll"}}
+  focal_point {{"\[topnode parent.input0].focal_point"}}
+  fstop {{"\[topnode parent.input0].fstop"}}
+  name connectedCam
+  tile_color 0x5682e700
+  gl_color 0x4851e400
+  xpos 353
+  ypos 138
+ }
+  Input {
+  inputs 0
+  name camera
+  xpos 455
+  ypos 150
+ }
+push $Nb6243f0
+ Constant {
+  inputs 0
+  channels rgb
+  format "256 256 0 0 256 256 1 square_256"
+  name _256sq
+  xpos 338
+  ypos 231
+  postage_stamp false
+ }
+ ScanlineRender {
+  inputs 3
+  transparency false
+  ztest_enabled false
+  filter Impulse
+  shutteroffset centred
+  motion_vectors_type off
+  name ScanlineRender3
+  xpos 454
+  ypos 231
+ }
+ CurveTool {
+  ROI {1024 640 3072 1920}
+  autocropdata {1024 640 3072 1920}
+  intensitydata {0 0 0 0.0035556496}
+  name updater
+  selected true
+  xpos 454
+  ypos 293
+ }
+end_group
