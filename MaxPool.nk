@@ -1,0 +1,19 @@
+set cut_paste_input [stack 0]
+version 11.3 v4
+push $cut_paste_input
+BlinkScript {
+ recompileCount 56
+ ProgramGroup 1
+ KernelDescription "2 \"MaxPool\" iterate componentWise e356904a65a50807ef26af4cd3ec33d03dc9c2122169ef31e8230d62a0627989 2 \"src\" Read Random \"dst\" Write Point 2 \"Kernel Size\" Int 1 AgAAAA== \"Stride\" Int 1 AgAAAA== 2 \"size\" 1 1 \"stride\" 1 1 0"
+ kernelSource "kernel MaxPool : public ImageComputationKernel<eComponentWise>\n\{\n  Image<eRead, eAccessRandom, eEdgeClamped> src; \n  Image<eWrite, eAccessPoint> dst;          \n\n  param:\n    int size;\n    int stride;\n\n  void define() \{\n    defineParam(size, \"Kernel Size\", 2);\n    defineParam(stride, \"Stride\", 2);\n  \}\n\n  void process(int2 pos)\n  \{\n    int r = pos.x * stride;\n    int c = pos.y * stride;\n    float px = src(r, c);\n    for (int j = 0; j <= size; j++) \{\n      for (int i = 0; i <= size; i++) \{\n        px = max(src(r+i, c+j), px);\n      \}\n    \}\n    dst() = px;\n  \}\n\};"
+ rebuild ""
+ "MaxPool_Kernel Size" 3
+ MaxPool_Stride 3
+ format "4 4 0 0 4 4 1 4x4"
+ specifiedFormat true
+ rebuild_finalise ""
+ name BlinkScript43
+ selected true
+ xpos -1780
+ ypos 1295
+}
