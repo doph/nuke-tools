@@ -1,0 +1,17 @@
+set cut_paste_input [stack 0]
+version 11.3 v4
+push $cut_paste_input
+BlinkScript {
+ recompileCount 68
+ ProgramGroup 1
+ KernelDescription "2 \"SumY\" iterate componentWise 403e75761271afa065bc85fbfee52d15de3aebd78b5093db80206aa1532bc57a 2 \"src\" Read Random \"dst\" Write Point 0 0 2 \"src_width\" Int 1 1 AAAAAA== \"src_height\" Int 1 1 AAAAAA=="
+ kernelSource "kernel SumY : public ImageComputationKernel<eComponentWise>\n\{\n  Image<eRead, eAccessRandom, eEdgeClamped> src;\n  Image<eWrite, eAccessPoint> dst;\n\n  local:\n    int src_width;\n    int src_height;\n\n  void init() \{\n    src_width = src.bounds.width();\n    src_height = src.bounds.height();\n  \}\n\n  void process(int2 pos) \{\n    float px = 0.0;\n    for (int y = 0; y <= src_height; y++) \{\n        px += src(pos.x,y);\n    \}\n    dst() = px;\n  \}\n\};"
+ rebuild ""
+ format "16 10 0 0 16 10 1 unrolled tall"
+ specifiedFormat true
+ rebuild_finalise ""
+ name BlinkScript45
+ selected true
+ xpos -563
+ ypos 2016
+}
