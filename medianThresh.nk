@@ -1,0 +1,16 @@
+set cut_paste_input [stack 0]
+version 11.3 v4
+push $cut_paste_input
+BlinkScript {
+ recompileCount 41
+ ProgramGroup 1
+ KernelDescription "2 \"MedianThresh\" iterate componentWise 21faf7235f4cf5b37ddfa7972a4f1af22d0e068020c96f0bfdf18ce8d341e2e8 2 \"imageIn\" Read Ranged2D \"imageOut\" Write Point 2 \"Kernel Size\" Int 1 BQAAAA== \"Threshold\" Float 1 zczMPQ== 2 \"size\" 1 1 \"threshold\" 1 1 3 \"imageInrangeMin\" Int 2 1 AAAAAAAAAAA= \"imageInrangeMax\" Int 2 1 AAAAAAAAAAA= \"radius\" Int 1 1 AAAAAA=="
+ kernelSource "kernel MedianThresh : public ImageComputationKernel<eComponentWise>\n\{\n  Image<eRead, eAccessRanged2D, eEdgeClamped> imageIn; \n  Image<eWrite, eAccessPoint> imageOut;          \n\n  param:\n    int size;\n    float threshold;\n\n  local:\n    int radius;\n\n  void define() \{\n    defineParam(size, \"Kernel Size\", 5);\n    defineParam(threshold, \"Threshold\", 0.1f);\n  \}\n\n  void init() \{\n    radius = floor(size / 2);\n    imageIn.setRange(-radius, radius);\n  \}\n\n  void process(int2 pos)\n  \{\n    float vals\[100];\n\n    for (int j = -radius, index = 0; j <= radius; j++) \{\n      for (int i = -radius; i <= radius; i++, index++) \{\n        vals\[index] = imageIn(i, j);\n      \}\n    \}\n   \n    //The median function takes an array of floating-point values and an array length.\n    float med = median(vals, size*size);\n    if ((imageIn(0,0) / med) > threshold) \{\n        imageOut() = med;\n    \}\n    else \{\n        imageOut() = imageIn(0,0);\n    \}\n  \}\n\};"
+ rebuild ""
+  MedianThresh_Threshold 1.5
+ rebuild_finalise ""
+ name BlinkScript2
+ selected true
+ xpos -16993
+ ypos 2158
+}
